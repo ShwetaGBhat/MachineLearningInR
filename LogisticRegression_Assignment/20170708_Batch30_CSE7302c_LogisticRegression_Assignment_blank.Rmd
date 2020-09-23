@@ -1,0 +1,239 @@
+---
+title: "Prediction of Patient Status using Voice Measurements"
+author: "Shweta Bhat."
+date: "8 July 2017"
+output:
+  html_document:
+    toc: yes
+    toc_depth: 3
+    toc_float: yes
+---
+
+**NOTE** Before starting this assignment please remember to clear your environment, you can do that by running the following code chunk
+
+```{r}
+rm(list = ls(all=TRUE))
+```
+
+# Agenda 
+
+* Get the data
+
+* Data Pre-processing
+
+* Build a model
+
+* Predictions
+
+* Communication
+
+
+# Reading & Understanding the Data
+
+* The "parkinsons_data.csv"" dataset is composed of a range of biomedical voice measurements. Each column in the table is a particular voice measure, and each row corresponds one of 195 voice recordings.
+
+* The dataset has 195 rows and 23 columns. 
+
+* The column/variable names' explanation is given below:
+
+1) __MDVP:Fo(Hz) :__ Average vocal fundamental frequency
+
+2) __MDVP:Fhi(Hz) :__ Maximum vocal fundamental frequency
+
+3) __MDVP:Flo(Hz) :__ Minimum vocal fundamental frequency
+
+4) __MDVP:Jitter(%); MDVP:Jitter(Abs); MDVP:RAP; MDVP:PPQ; Jitter:DDP :___ Several measures of variation in fundamental frequency
+
+5) __MDVP:Shimmer; MDVP:Shimmer(dB); Shimmer:APQ3; Shimmer:APQ5; MDVP:APQ; Shimmer:DDA :__ Several measures of variation in amplitude
+
+6) __NHR; HNR :__ Two measures of ratio of noise to tonal components in the voice
+
+7) __status :__ Health status of the subject (Parkinson's) - Positive, (Normal) - Healthy
+
+8) __RPDE; D2 :__  Two nonlinear dynamical complexity measures
+
+9) __DFA :__ Signal fractal scaling exponent
+
+10) __spread1; spread2; PPE :__ Three nonlinear measures of fundamental frequency variation
+
+* Make sure the dataset is located in your current working directory and read in the data
+
+```{r}
+setwd("/Users/shwetabhat/Desktop/DataScience/LogisticRegression_Assignment")
+parkisons_data=read.csv("/Users/shwetabhat/Desktop/DataScience/LogisticRegression_Assignment/parkinsons_data.csv",header=TRUE)
+```
+* Use the str() function to get a feel for the dataset.
+```{r}
+str(parkisons_data)
+```
+* Take a look at the data using the "head()" and "tail()" functions
+```{r}
+head(parkisons_data)
+tail(parkisons_data)
+```
+* Are there any missing values in the dataset?
+```{r}
+sum(is.na(parkisons_data))
+```
+
+# Data Pre-processing
+## Train/Test Split
+
+* Split the data 70/30 into train and test sets, using __Stratified Sampling__ by setting the seed as "786"
+
+```{r}
+library(caret)
+set.seed(222)
+summary(parkisons_data$status)
+#has unequal classes.Number of Normal is different to Parkinsons
+trained_rows <- createDataPartition(parkisons_data$status, p = 0.7, list = F)
+##sample(1:nrow(parkisons_data), 0.7*nrow(parkisons_data))
+trained_data <- parkisons_data[trained_rows, ]
+testing_data <- parkisons_data[-trained_rows, ]
+```
+
+# Build a model
+
+## Basic Logistic Regression Model
+
+* Use the glm() function to build a basic model
+
+* Build a model using all the variables, excluding the response variable, in the dataset
+
+```{r}
+logistic_model=glm(formula=status~.,data = trained_data,family='binomial')
+```
+
+* Get the summary of the model and understand the output
+
+```{r}
+summary(logistic_model)
+#Only 1 variable MDVP.Fo.Hz. seems to be significant at 5% significance level.
+library(MASS)
+stepAICModel=stepAIC(logistic_model)
+#StepAIC gives formula MDVP.Fo.Hz. + MDVP.Jitter... + MDVP.Jitter.Abs. + MDVP.RAP + RPDE + spread2 + PPE
+#indicating variables MDVP.Fo.Hz., MDVP.Jitter,MDVP.Jitter.Abs.,MDVP.RAP, RPDE,spread2,PPE are important
+library(car)
+logistic_stepAIC_vif = vif(stepAICModel)
+logistic_stepAIC_vif
+#Says attributes RPDE,spread2,PPE  all have VIF less than 5 i.e, multi colinearity problem.so have to remove some attriibutes in model builiding.
+#rebuilding model.
+logistic_model1 = glm(formula=status ~ MDVP.Fo.Hz.+MDVP.Jitter... + MDVP.Jitter.Abs.+MDVP.RAP+RPDE+PPE+spread2,data = trained_data,family='binomial')
+summary(logistic_model1)
+```
+
+## Create an ROC Curve
+1) Get a list of predictions (probability scores) using the predict() function
+```{r}
+library(ROCR)
+prob_Resp=predict(logistic_model1,type = "response")
+```
+2) Using the ROCR package create a "prediction()" object
+```{r}
+predicted_resp=prediction(prob_Resp,trained_data$status)
+```
+3) Extract performance measures (True Positive Rate and False Positive Rate) using the "performance()" function from the ROCR package
+```{r}
+perf = performance(predicted_resp, measure="tpr", x.measure="fpr")
+```
+
+
+4) Plot the ROC curve using the extracted performance measures (TPR and FPR)
+
+```{r}
+plot(perf, col=rainbow(10), colorize=T, print.cutoffs.at=seq(0,1,.05))
+```
+
+* Extract the AUC score of the ROC curve and store it in a variable named "auc"
+
+```{r}
+performance_auc <- performance(predicted_resp, measure="auc")
+# Access the auc score from the performance object
+auc <- performance_auc@y.values[[1]]
+print(auc)
+```
+
+
+## Choose a Cutoff Value
+
+* Based on the trade off between TPR and FPR depending on the business domain, a call on the cutoff has to be made.
+
+```{r}
+### Write your answer here
+# A cutoff of ----- seems reasonable
+#.1 or .05 seems to be reasonable for my assuption.
+```
+
+
+## Predictions on test data
+
+* After choosing a cutoff value, predict the class labels on the test data using our model
+
+```{r}
+prob_test_Data=predict(logistic_model1, testing_data, type = "response")
+preds_test=ifelse(prob_test_Data > 0.1, "Parkinson's", "Normal")
+table(preds_test)
+```
+
+# Evaluation Metrics for classification
+
+## Manual Computation
+
+### Confusion Matrix
+
+* Create a confusion matrix using the table() function
+
+```{r}
+Confusion_matrix=table(testing_data$status, preds_test)
+print(Confusion_matrix)
+```
+
+### Specificity
+
+* Calculate the Specificity
+
+* The Proportion of correctly identified negatives by the test/model.
+
+$${Specificity} = \frac{Number~of~True~Negatives}{Number~of~True~Negatives + Number~of~False~Positives}$$
+
+```{r}
+specificity <- Confusion_matrix[1, 1]/sum(Confusion_matrix[1, ])
+print(specificity)
+```
+
+
+### Sensitivity
+
+* Calculate the Sensitivity
+
+* The Proportion of correctly identified positives by the test/model.
+
+$${Sensitivity} = \frac{Number~of~True~Positives}{Number~of~True~Positives + Number~of~False~Negatives}$$
+
+```{r}
+sensitivity <- Confusion_matrix[2, 2]/sum(Confusion_matrix[2, ])
+print(sensitivity)
+```
+
+### Accuracy
+
+* Calculate the Accuracy
+
+* The Proportion of correctly identified psotivies/negatives in the entire population by the test/model
+
+$${Accuracy} = \frac{Number~of~True~Positives +Number~of~True~Negatives}{Number~Of~Subjects~in~the~Population}$$
+
+```{r}
+accuracy <- sum(diag(Confusion_matrix))/sum(Confusion_matrix)
+print(accuracy)
+```
+
+## Automated Computation through Caret
+
+* Use the caret package to compute the evaluation metrics
+
+* Mention your reference positive class as an argument to the confusionMatrix() function
+
+```{r}
+confusionMatrix(preds_test, testing_data$status, positive = "Parkinson's")
+```

@@ -1,0 +1,153 @@
+---
+title: "Association Rules "
+author: " "
+date: "July 21, 2017"
+output: html_document
+---
+# Problem 3 - Assignment
+### Association Rules for "Flight Delay" dataset: Generate the rules and identify the patterns. 
+
+1. Read the data into R
+
+```{r, echo=T}
+rm(list = ls(all=T))
+
+setwd("C:\\Users\\C5215696\\Desktop\\Data Science\\Association-Rules")
+
+flight_data<-read.csv(file = "FlightDelays.csv", header = T, sep = ",")
+
+sum(is.na((flight_data)))
+
+colSums(is.na(flight_data))
+```
+
+
+2. Look at the summary of all the variables and convert the following variables as factors 
+        + Weather 
+        + DAY_WEEK 
+        + Flight Status
+```{r}
+str(flight_data)
+
+flight_data$Weather<-as.factor(flight_data$Weather)
+flight_data$DAY_WEEK<-as.factor(flight_data$DAY_WEEK)
+flight_data$Flight.Status<-as.factor(flight_data$Flight.Status)
+
+str(flight_data)
+```
+
+3. Bin the numeric variable 'CRS_DEP_TIME' into 4 bins as follows: If time is between 6 AM to 12 noon code as 1 and If the time is between 2 , etc.
+```{r}
+##As data have starting value from 6 AM, we will have only 3 bins. 000 to 559 will not have any levels.
+flight_data$CRS_DEP_TIME<-cut(flight_data$CRS_DEP_TIME, breaks = c(1159,1759,2359, 559), labels = c(1,2,3))
+
+unique(flight_data$CRS_DEP_TIME)
+
+table(flight_data$CRS_DEP_TIME)
+
+summary(flight_data)
+
+head(flight_data)
+
+dim(flight_data)
+
+```
+
+4. Convert the data frame in a transactions object. Look at the first 6 transactions to understand how 'arules' library requires data to be transformed. Use the below R code to view the transactions data 
+```{r}
+library(arules)
+
+##Transactional objects
+flight_trans <-  as(flight_data, "transactions")
+
+summary(flight_trans)
+
+itemInfo(flight_trans)
+
+inspect(flight_trans[2000:2010])
+
+image(flight_trans)
+```
+
+5. Apply 'arules' algorithm and play with various support, lift and confidence values.
+```{r}
+rules1<-apriori(flight_trans, parameter = list(support = 0.1, conf = 0.1, target = 'rules', minlen = 3))
+
+rules1
+
+inspect(rules1[1:10])
+
+head(quality(rules1))
+
+rules2<-apriori(flight_trans, parameter = list(support = 0.1, conf = 0.2, target = 'rules', minlen = 3))
+
+head(quality(rules2))
+
+rules2
+
+rules3<-apriori(flight_trans, parameter = list(support = 0.1, conf = 0.5, target = 'rules', minlen = 3))
+
+rules3
+```
+
+6. Inspect all the rules.
+```{r}
+
+inspect(sort(rules1[1:20], by = "lift"))
+inspect(sort(rules1[1:20], by = c("support", "confidence")))
+
+inspect(sort(rules2[1:20], by = "lift"))
+inspect(sort(rules2[1:20], by = c("support", "confidence")))
+
+inspect(sort(rules3[1:20], by = "lift"))
+inspect(sort(rules3[1:20], by = c("support", "confidence")))
+```
+
+7. Filter the rules with specific LHS and RHS conditions 
+E.g.; Filter the rules with Flighstatus=0
+```{r}
+## filtering only rhs(rules) as we need to find which rules affect flightstatus the most and more over rules with > 2 elements will be rendered because we supplied minlen=3 
+rules.filter1 <- sort(subset(rules1, subset = rhs %in% 
+                        c("Flight.Status=0", "Flight.Status=1")), by=c("support", "confidence"))
+
+rules.filter2 <- sort(subset(rules2, subset = rhs %in% 
+                        c("Flight.Status=0", "Flight.Status=1")), by=c("support", "confidence"))
+
+rules.filter3 <- sort(subset(rules3, subset = rhs %in% 
+                        c("Flight.Status=0", "Flight.Status=1")), by=c("support", "confidence"))
+
+```
+
+8. Filter redundant rules if any
+```{r}
+
+rules.filter1
+rules.filter2
+rules.filter3
+
+itemFrequency(rules.filter1[01:57]@lhs, type = "absolute")
+itemFrequency(rules.filter2[01:57]@lhs, type = "absolute")
+itemFrequency(rules.filter3[01:56]@lhs, type = "absolute")
+
+table(duplicated(rules.filter1))
+table(is.redundant(rules.filter1))
+table(duplicated(rules.filter2))
+table(is.redundant(rules.filter2))
+table(duplicated(rules.filter3))
+table(is.redundant(rules.filter3))
+
+# After applyig filters for necessary condition(flightstatus), we get same rules in all three variables. Hence using rule.filter1 for our analysis.
+
+which(is.redundant(rules.filter1))
+
+#Removing redudant filters from rule.filter1
+rules1_upd<-rules.filter1[!is.redundant(rules.filter1)]
+typeof(rules1_upd)
+table(is.redundant(rules1_upd))
+```
+
+9. Pot and visualize the rules
+```{r}
+library(arulesViz)
+plot(rules1_upd)
+```

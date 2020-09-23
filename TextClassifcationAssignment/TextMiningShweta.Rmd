@@ -1,0 +1,112 @@
+---
+title: "Text Mining."
+author: 'Shweta Bhat'
+date: "August 10, 2017"
+output: html_document
+---
+# load libraries prior
+
+```{r}
+library(tm)
+library(magrittr)         
+library(NLP)
+library(caret)
+```
+
+# Create a corpus - a collection of text documents
+
+```{r}
+getSources()
+getReaders()
+medicine = Corpus(DirSource("/Users/shwetabhat/Desktop/DataScience/TextClassifcationAssignment/sci.med"),readerControl = list(language='en_US'))
+
+space = Corpus(DirSource("/Users/shwetabhat/Desktop/DataScience/TextClassifcationAssignment/sci.space"),readerControl = list(language='en_US'))
+
+```
+#Corpus creation
+```{r}
+corpus_total = c(medicine,space)
+corpus_total = Corpus(VectorSource(unlist(corpus_total)))
+```
+
+# preprocessing
+
+```{r}
+getTransformations()
+toSpace <- content_transformer(function(x, pattern) gsub(pattern, " ", x))
+docs <- tm_map(corpus_total, toSpace, "/")
+docs <- tm_map(corpus_total, toSpace, "@")
+docs <- tm_map(corpus_total, toSpace, "\\|")
+
+corpus_total = tm_map(corpus_total, removePunctuation)
+corpus_total = tm_map(corpus_total, removeNumbers)
+corpus_total = tm_map(corpus_total, tolower)
+corpus_total = tm_map(corpus_total, removeWords, stopwords("english"))
+corpus_total = tm_map(corpus_total, stemDocument, language="english")
+corpus_total = tm_map(corpus_total, stripWhitespace)
+
+as.character(corpus_total[[1]])
+
+
+```
+
+#Constructs or coerces to a document-term matrix
+```{r}
+docTermMatrix <-DocumentTermMatrix(corpus_total, 
+                               control=list(weighting=weightTfIdf, 
+                                            minWordLength=3, 
+                                            minDocFreq=5)) 
+
+docTermMatrix
+inspect(docTermMatrix[1:4,1:5])
+```
+
+
+# Remove sparse terms from a document-term matrix
+```{r}
+docTermMatrix <- removeSparseTerms(docTermMatrix, 0.7)
+```
+
+# Applying SVD on Document-Term Matrix
+
+```{r}
+svd = svd(as.matrix(docTermMatrix))
+matrix = svd$u
+```
+
+# Convert to dataframe
+```{r}
+data = as.data.frame(matrix)
+data <- data[apply(data, 1, function(x) !all(x==0)),]
+```
+
+# Attach Class label
+```{r}
+target = as.factor(c(rep('med',1000), rep('space',1000)))
+data <- cbind(data,target)
+
+# split the data into train and test
+set.seed(586)
+
+train_rows = createDataPartition(data$target, p = 0.7, list = F)
+train_target = data[train_rows, names(data) %in% c("target")] 
+
+traindata = data[train_rows,] 
+testdata = data[-train_rows,]
+```
+# Classification Using Decision Tree
+```{r}
+library(rpart)
+rpart_model = rpart(train_target~.,traindata)
+a=table(testdata$target,predict(rpart_model,testdata,type = "class"))
+accuracy=sum(diag(a))/sum(a)
+accuracy
+```
+#Classification Using Naive Bayes
+```{r}
+library(e1071)
+nb_model = naiveBayes(x = traindata,y = traindata$target)
+a=table(testdata$target,predict(nb_model,testdata[,!names(testdata) %in% c("target")],type = "class"))
+accuracy=sum(diag(a))/sum(a)
+accuracy
+```

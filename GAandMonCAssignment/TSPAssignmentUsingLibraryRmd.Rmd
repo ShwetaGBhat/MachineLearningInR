@@ -1,0 +1,34 @@
+---
+title: "GAAssignment"
+author: "Shweta"
+date: "9/7/2017"
+output: html_document
+---
+#clear Environment.
+```{r}
+rm(list=ls(all=TRUE))
+```
+#load libraries.
+```{r}
+library(GA)
+```
+#Loading the costMatrix
+```{r}
+costMatrix <- read.csv("/Users/shwetabhat/Desktop/DataScience/Assignments/GAandMonCAssignment/distanceinfo.csv", header =TRUE, sep = ',')
+rownames(costMatrix) <- colnames(costMatrix)
+costMatrix = as.matrix(costMatrix)
+```
+#Function to calculates tour length 
+```{r}
+tourLength <- function(tour, distMatrix) {
+  tour=c(tour, tour[1])
+  route=embed(tour, 2)[,2:1]
+  sum(distMatrix[route])
+}
+```
+#Fitness function to be maximized
+```{r}
+tspFitness <- function(tour, ...) 1/tourLength(tour, ...)
+GA= ga(type = "permutation", fitness = tspFitness, distMatrix = costMatrix,min = 1,max = 10, pmutation = 0.2, names = rownames(costMatrix))
+summary(GA)
+```

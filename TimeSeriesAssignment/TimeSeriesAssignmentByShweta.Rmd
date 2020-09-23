@@ -1,0 +1,219 @@
+---
+title: "Text Mining."
+author: 'Shweta Bhat'
+date: "August 10, 2017"
+output: html_document
+---
+### Problem Description
+ 
+ Build time series models in using GE Power Stock  in the BSE.Our goal is to forecast the  closing price of the GEPower for future time period using time series algorithms and evaluating each of the algorithms.
+```{r}
+
+```
+
+###Clear the Global Environment
+```{r}
+rm(list=ls(all=TRUE))
+```
+### Library Call
+```{r}
+library(forecast)
+library(lubridate)
+library(DataCombine)
+library(imputeTS)
+library(plyr)
+library(TTR)
+library(graphics)
+library(dplyr)
+```
+## Read the data from csv
+* Read the data using CSV for now 
+* GEPower_Data<-Quandl("BSE/BOM532309") 
+```{r}
+GEPower_Data<-read.csv("/Users/shwetabhat/Desktop/DataScience/TimeSeriesAssignment/BSE-BOM532309.csv")
+```
+
+## Observe the structure 
+
+```{r}
+str(GEPower_Data)
+```
+
+## Head of the Data
+
+```{r}
+head(GEPower_Data)
+```
+## Observation and Domain Knowldege
+* Stock exchange is usually closed on Sunday and Holidays therefore      those days cannot be taken as missing values 
+* Take the closing price and dates column and convert it into a new      data frame
+```{r}
+stockData=subset(GEPower_Data,select = c("Date",'Close'))
+stockData$Date=as.Date(as.character(stockData$Date))
+summary(stockData)
+```
+
+## Converting the date into year ,month and day
+```{r}
+minDate=min(stockData$Date)
+maxDate=max(stockData$Date)
+datesBetweeen=data.frame("dateRange"=seq(minDate,maxDate,by="days"))
+stockData1=merge(stockData,datesBetweeen,by.x="Date",by.y="dateRange",all.y =T)
+```
+
+### Splitting of the Data
+* Random split is not possible because here we will be in need of sequence where by we miss the data points
+* splitting is done by sequential splitting
+```{r}
+stockData1$Close<-na.locf(stockData1$Close)
+stockData1=stockData1[rev(rownames(stockData1)),]
+testData=subset(stockData1$Close, format(as.Date(stockData1$Date),"%Y")==2017)
+trainData=subset(stockData1$Close, format(as.Date(stockData1$Date),"%Y")<2017)
+trainData_ts=ts(trainData,frequency = 365)
+```
+### Vizualize the time series Data
+```{r}
+plot(trainData_ts)
+```
+
+### Decomposed Time Series
+* Decompose will provide us with the info on seasonality,trend and randomness
+```{r}
+decomposed_components=decompose(trainData_ts)
+plot(decomposed_components)
+plot(decomposed_components$trend)
+```
+### ACF,PACF 
+* Autocorrelation is the linear dependence of a variable with itself at two points in time
+* For stationary processes, autocorrelation between any two observations only depends on the time lag h between them
+*  Partial autocorrelation is the autocorrelation between yt and yt–h after removing any linear dependence on y1,y2, ..., yth+1
+```{r}
+ndiffs(trainData_ts)
+acf(trainData_ts)
+pacf(trainData_ts)
+```
+* Looking at the Y scale in ACF we observe that trend is more dominant than seasonality
+* Data is not stationay and we need to stationarize the data
+
+### Stationarize by differencing
+
+```{r}
+par(mfrow = c(1, 1))
+stockData_diff1 <- diff(trainData_ts, differences = 1)
+par(mfrow=c(1,2))
+acf(stockData_diff1)
+pacf(stockData_diff1)
+```
+* one lag has stationarize the data we can use ndiffs of forecast package to check no of differences required to stationarize the data
+
+### Modelling  the time series using simple moving averages
+* Time series Price has trend 
+* Modelling the time series behaviour by simple moving averages
+```{r}
+fitsma <- SMA(trainData_ts,n=2)
+pred<-forecast(fitsma,h=4)
+plot(pred)
+```
+### Define the metric MAPE 
+```{r}
+smaMape <- mean(abs((trainData_ts[2:length(stockData_diff1)]-trainData_ts[2:length(trainData_ts)])/trainData_ts[2:length(trainData_ts)]))
+smaMape
+```
+
+### Weighted Moving Averages
+```{r}
+fitwma<- WMA(trainData_ts,n=2,1:2)
+wmaMape <- mean(abs((trainData_ts[2:length(trainData_ts)]-fitwma[2:length(trainData_ts)])/trainData_ts[2:length(trainData_ts)]))
+wmaMape
+pred<-forecast(fitwma,h=4)
+plot(pred)
+```
+
+### Exponential Moving Averages
+```{r}
+fitEma <- EMA(trainData_ts, n = 2)
+emaMape <- mean(abs((trainData_ts[2:length(trainData_ts)]-fitEma[2:length(trainData_ts)])/trainData_ts[2:length(trainData_ts)]))
+emaMape
+pred<-forecast(fitEma,h=4)
+plot(pred)
+```
+
+## HoltWinters Model
+```{r}
+stockPriceForeCastUsingHoltWinters <- HoltWinters(trainData_ts)
+plot(stockPriceForeCastUsingHoltWinters$fitted)
+
+plot(stockPriceForeCastUsingHoltWinters)
+stockPriceForeCastUsingHoltWinters$SSE
+rstockPriceResidual = residuals(stockPriceForeCastUsingHoltWinters)
+
+##Outputs all alpha,beta,gamma.
+plot(rstockPriceResidual)
+par(mfrow = c(1,2))
+acf(rstockPriceResidual)
+pacf(rstockPriceResidual)
+```
+### Prediction on the Train
+```{r}
+holtforecastTrain <- data.frame(stockPriceForeCastUsingHoltWinters$fitted)
+holtforecastTrainpredictions <- holtforecastTrain$xhat
+head(holtforecastTrainpredictions)
+```
+
+### Prediction on test data
+```{r}
+priceforecast<-forecast(stockPriceForeCastUsingHoltWinters,h = 8)
+plot(priceforecast,ylim = c(-200,200))
+
+```
+
+### Arima Models
+```{r}
+model1 <- arima(trainData_ts,c(0,0,0))
+model1
+par(mfrow = c(1,3))
+acf(trainData_ts) 
+pacf(trainData_ts)
+plot(trainData_ts)
+
+nsdiffs(trainData_ts) # No
+
+#Non-seasonal differencing
+ndiffs(trainData_ts)  # Yes,  = 1
+
+model2 <- arima(trainData_ts,c(0,1,0))
+model2
+acf(diff(trainData_ts,lag = 1))
+pacf(diff(trainData_ts,lag = 1))
+plot(diff(trainData_ts))
+
+# So manual arima model is (0,1,0)
+```
+
+
+## Plots of the models
+```{r}
+par(mfrow=c(1,2))
+plot(model1$residuals,ylim=c(-50,50))
+plot(model2$residuals,ylim=c(-50,50))
+```
+
+### Using Auto Arima
+```{r}
+autoArima <- auto.arima(trainData_ts, ic='aic')
+summary(autoArima)
+
+```
+### Forecast on the models 
+```{r}
+par(mfrow = c(1,1))
+pricearimaforecasts1 <- forecast(model1, h=4)
+plot(pricearimaforecasts1)
+
+pricearimaforecasts2 <- forecast(model2, h=4)
+plot(pricearimaforecasts1)
+
+pricearimaforecasts_autArima<- forecast(autoArima,h=4)
+plot(pricearimaforecasts_autArima,flwd = 2)
+
+```

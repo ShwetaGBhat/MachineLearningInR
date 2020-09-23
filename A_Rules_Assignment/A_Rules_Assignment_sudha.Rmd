@@ -1,0 +1,80 @@
+---
+title: "Association Rules "
+author: "Sudharani Rangapale"
+date: "July 21, 2017"
+output: html_document
+---
+# Problem 3 - Assignment
+### Association Rules for "Flight Delay" dataset: Generate the rules and identify the patterns. 
+
+1. Read the data into R
+
+```{r, echo=T}
+FlightDelays=read.csv("/Users/shwetabhat/Desktop/DataScience/A_Rules_Assignment/FlightDelays.csv")
+```
+
+
+2. Look at the summary of all the variables and convert the following variables as factors 
+        + Weather 
+        + DAY_WEEK 
+        + Flight Status
+```{r}
+str(FlightDelays)
+  summary(FlightDelays)
+  FlightDelays$Weather=as.factor(as.character((FlightDelays$Weather)))
+  FlightDelays$DAY_WEEK =as.factor(as.character((FlightDelays$DAY_WEEK )))
+  FlightDelays$Flight.Status=as.factor(as.character((FlightDelays$Flight.Status)))
+  
+```
+
+3. Bin the numeric variable 'CRS_DEP_TIME' into 4 bins as follows: If time is between 6 AM to 12 noon code as 1 and If the time is between 2 , etc.
+```{r}
+
+FlightDelays$CRS_DEP_TIME = factor(cut(FlightDelays$CRS_DEP_TIME, breaks = c(599, 1200, 1800, 2400, Inf), labels = c("1", "2", "3", "4")))
+```
+
+4. Convert the data frame in a transactions object. Look at the first 6 transactions to understand how 'arules' library requires data to be transformed. Use the below R code to view the transactions data 
+```{r}
+library(arules)
+Flightdelays_transc=as(FlightDelays,"transactions")
+inspect(Flightdelays_transc)
+
+
+
+```
+
+5. Apply 'arules' algorithm and play with various support, lift and confidence values.
+```{r}
+
+rules=apriori(Flightdelays_transc,parameter=list(sup=0.2,conf=0.6,target="rules"))
+```
+
+6. Inspect all the rules.
+```{r}
+inspect(rules)
+
+```
+
+7. Filter the rules with specific LHS and RHS conditions 
+E.g.; Filter the rules with Flighstatus=0
+```{r}
+rules.sorted <- sort(rules, by="lift")
+inspect(rules.sorted)
+
+```
+
+8. Filter redundant rules if any
+```{r}
+subset.matrix <- is.subset(rules.sorted, rules.sorted,sparse = FALSE)
+subset.matrix[lower.tri(subset.matrix, diag=T)] <- NA
+redundant <- colSums(subset.matrix, na.rm=T) >= 1
+which(redundant)
+rules.pruned <- rules.sorted[!redundant]
+inspect(rules.pruned)
+```
+
+9. Pot and visualize the rules
+```{r}
+library(arulesViz)
+plot(rules.pruned)
+```

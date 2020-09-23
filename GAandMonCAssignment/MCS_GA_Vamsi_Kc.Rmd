@@ -1,0 +1,84 @@
+---
+title: "Assignment-MCS-GA"
+author: '"Vamsi Kc"'
+date: "September 4, 2017"
+output:
+  html_document:
+    toc: yes
+    toc_depth: 3
+    toc_float: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Part A (Monte Carlo Assignment) 
+
+* To clear environment
+
+```{r}
+rm(list = ls(all=TRUE))
+```
+
+* Set path
+
+```{r}
+setwd("C:\\Users\\Dell\\Downloads\\Asignments\\assignment-mcs-ga-vamsikrishnakc-master")
+```
+
+
+
+```{r}
+
+rm(list=ls(all=TRUE))
+
+timeneeded =  function(numSeries) {
+  
+  time = 0
+  
+  for(i in 1:numSeries) {
+    
+    partorfull = runif(1,0,1)
+    
+    if (partorfull<=0.1) {
+      
+      totalmodules = sample(10:12,1)
+
+      }
+    
+    else {
+
+      totalmodules = sample(20:24,1)
+
+      }
+
+    taskspermodule = sample(50:100,totalmodules,replace = T)
+
+
+    totaltasks = sum(taskspermodule)
+
+
+    timetodotasks = sum(sample(5:10,totaltasks,replace = T))
+
+
+    resources = sample(3:7,1,replace =T)
+
+
+    timetaken = timetodotasks/resources
+
+    cat("The most likely time to complete the project is : ",timetaken,"\n")
+  
+    }
+
+}
+
+simulations = c(10,100,1000,10000,100000,1000000)
+
+for (i in simulations)
+  
+{
+  Totaltime = timeneeded(i)
+}
+```
+

@@ -1,0 +1,203 @@
+---
+title: "SVM-Random"
+author: "sudha"
+date: "24 August 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+rm(list=ls(all=TRUE))
+
+library(DMwR)
+library(dummies)
+library(vegan)
+library(e1071)
+```
+#read and understand data
+```{r}
+sartog <- read.csv(file = "/Users/shwetabhat/Desktop/DataScience/assignment-svm-random-forest-ShwetaGBhat-master/SaratogaHouses.csv", sep = ",")
+str(sartog)
+summary(sartog)
+```
+
+# Convert attribute to appropriate type  
+```{r}
+catDummies <- model.matrix(sartog$price ~ sartog$heating + sartog$fuel + sartog$sewer + sartog$waterfront + sartog$newConstruction + sartog$centralAir)[,-1]
+
+sartog = sartog[,-c(11:17)]
+
+sartog = data.frame(sartog,catDummies)
+```
+# Divide the data into test and train
+```{r}
+set.seed(150)
+
+train_RowIDs = sample(1:nrow(sartog), nrow(sartog)*0.7)
+train_Data = sartog[train_RowIDs,]
+test_Data = sartog[-train_RowIDs,]
+rm(train_RowIDs)
+```
+
+# Build best SVM model 
+```{r}
+model = svm(price~.,data = train_Data,scale = T , 
+            type = "nu-regression", 
+            kernel = "linear", cost = 1e-02) 
+``` 
+
+# Look at the model summary
+```{r}
+summary(model)
+```
+
+```{r}
+# Predict on train data and check the performance
+regr.eval(train_Data$price, predict(model, train_Data[,2:19]))
+
+# Predict on test data and check the performance  
+regr.eval(test_Data$price, predict(model, test_Data[,2:19]))
+
+rm(model)
+```
+```{r}
+# Hyperparameter tuning 
+tuned <- tune.svm(price~.,data = train_Data, 
+                  type = "nu-regression", 
+                 gamma = 10^(-6:-1), cost = 10^(1:2))
+summary(tuned)
+
+rm(test_Data, train_Data, tuned)
+
+```
+
+#Part B
+```{r}
+rm(list=ls(all=TRUE))
+
+library(DMwR)
+library(randomForest)
+library(caret)
+library(inTrees)
+```
+
+```{r}
+sartog <- read.csv(file = "/Users/shwetabhat/Desktop/DataScience/assignment-svm-random-forest-ShwetaGBhat-master/SaratogaHouses.csv", sep = ",")
+str(sartog)
+summary(sartog)
+```
+
+```{r}
+# Convert attribute to appropriate type  
+catDummies <- model.matrix(sartog$price ~ sartog$heating + sartog$fuel + sartog$sewer + sartog$waterfront + sartog$newConstruction + sartog$centralAir)[,-1]
+
+sartog = sartog[,-c(11:17)]
+
+sartog = data.frame(sartog,catDummies)
+```
+```{r}
+# Divide the data into test and train
+set.seed(150)
+
+train_RowIDs = sample(1:nrow(sartog), nrow(sartog)*0.7)
+train_Data = sartog[train_RowIDs,]
+test_Data = sartog[-train_RowIDs,]
+rm(train_RowIDs)
+
+model = randomForest(price ~ ., data=train_Data,keep.forest=TRUE, ntree=50) 
+```
+
+```{r}
+# Print and understand the model
+print(model)
+
+# Important attributes
+model$importance  
+round(importance(model), 2)   
+```
+
+```{r}
+# Extract and store important variables obtained from the random forest model
+rf_Imp_Attr = data.frame(model$importance)
+rf_Imp_Attr = data.frame(row.names(rf_Imp_Attr),rf_Imp_Attr[,1])
+colnames(rf_Imp_Attr) = c('Attributes', 'Importance')
+rf_Imp_Attr = rf_Imp_Attr[order(rf_Imp_Attr$Importance, decreasing = TRUE),]
+rf_Imp_Attr
+# plot (directly prints the important attributes) 
+varImpPlot(model)
+```
+
+```{r}
+
+# Predict on Train data 
+pred_Train = predict(model,train_Data[,setdiff(names(train_Data),       
+                                               "price")],type="response",norm.votes=TRUE)
+
+# Predict on train data and check the performance
+reg_mod_train=regr.eval(train_Data$price, predict(model, train_Data[,setdiff(names(train_Data), "price")]))
+
+# Predict on test data and check the performance  
+reg_mod_test=regr.eval(test_Data$price, predict(model, train_Data[,setdiff(names(test_Data), "price")]))
+```
+
+```{r}
+#Building Random forest with top 9 important variables
+top_Imp_Attr = as.character(rf_Imp_Attr$Attributes[1:9])
+
+# Build the Regression model using randomForest
+model_Imp = randomForest(price~.,
+                         data=train_Data[,c(top_Imp_Attr,"price")], 
+                         keep.forest=TRUE,ntree=50) 
+# Print and understand the model
+print(model_Imp)
+
+# Important attributes
+model_Imp$importance
+
+
+reg_mod_train
+reg_mod_test
+
+```
+
+```{r}
+
+#tune the model
+top_Imp_Attr = as.character(rf_Imp_Attr$Attributes[1:9])
+set.seed(123)
+x <- train_Data[,!(names(train_Data) %in% c("price"))]
+y <- train_Data[,(names(train_Data) %in% c("price"))]
+str(y)
+```
+
+```{r}
+tunedmodel <-tuneRF(x,y,ntreeTry = 50,trace=TRUE,plot=TRUE,doBest = TRUE)
+print(tunedmodel)
+
+tunedmodel$importance
+varImpPlot(tunedmodel)
+```
+
+```{r}
+# Predict on train data and check the performance
+reg_tune_mod_train=regr.eval(train_Data$price, predict(tunedmodel, train_Data[,setdiff(names(train_Data), "price")]))
+
+# Predict on test data and check the performance  
+reg_tune_mod_test=regr.eval(test_Data$price, predict(tunedmodel, train_Data[,setdiff(names(test_Data), "price")]))
+
+reg_tune_mod_train
+reg_tune_mod_test
+```
+
+```{r}
+
+#compare all the models
+reg_mod_train
+reg_mod_test
+reg_tune_mod_train
+reg_tune_mod_test
+```
+

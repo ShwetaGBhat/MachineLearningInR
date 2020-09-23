@@ -1,0 +1,255 @@
+---
+title: "Multiple Linear Regression on Customer Data"
+author : "Insofe Lab Session"
+date: "July 02 , 2017"
+output:
+  html_document:
+    toc_depth: 3
+    toc_float: true
+  
+
+---
+```{r}
+# Go through the data and understand the attributes to get the info of the variables.
+```
+
+Write a code to clear the environment if needed
+```{r}
+rm(list=ls(all=(TRUE)))
+```
+
+Write a code to set the working directory.
+```{r }
+setwd("/Users/shwetabhat/Desktop/DataScience/CustomerData_Assignment")
+```
+Think and load the libraries as and when required in this place only as best practice
+```{r}
+
+```
+Write a code to read the csv file as "data" as per required
+```{r eval=TRUE }
+customer_data=read.csv("/Users/shwetabhat/Desktop/DataScience/CustomerData_Assignment/CustomerData_Assignment.csv",header = T)
+```
+Write a code to know the names of the attributes
+```{r}
+names(customer_data)
+colnames(customer_data)
+```
+Write a code to find the dimensions of the data
+```{r}
+dim(customer_data)
+```
+
+Write a code to see the head  and tail of the dataset atleast 10rows
+```{r }
+tail(customer_data,n = 10)
+head(customer_data,n=10)
+```
+Write a code to see the data types of the attributes 
+```{r }
+str(customer_data)
+```
+Write a code to remove the unuseful variables and store the data 
+```{r}
+#Consider
+city_data=customer_data$City
+customer_data=within(customer_data,rm('City','CustomerID'))
+##cust_data=customer_data[,-which(names(customer_data) == "City")]
+```
+Write a code to observe the variables and convert them into the required formats
+```{r}
+cat_attr=c("FavoriteGame","FavoriteChannelOfTransaction")
+num_attr=c(setdiff(names(customer_data),cat_attr))
+customer_data[num_attr]=data.frame(apply(customer_data[num_attr],2, function(x)as.numeric(x)))
+#or customer_data[num_attr]=data.frame(lapply(customer_data[num_attr],2,FUN = as.numeric))
+```
+Check the changes again using str() command
+```{r }
+str(customer_data)
+```
+Write a code to get the numerical attributes out and store them as num_df and seperate categorical attributes.
+```{r }
+cat_df=customer_data[,cat_attr]
+num_df=subset(customer_data,select=num_attr)
+```
+Write a Code to seperate the target
+```{r}
+target_attr=customer_data["TotalRevenueGenerated"]
+num_df$TotalRevenueGenerated=NULL
+```
+Write a code for Normalizing the num_df
+```{r}
+library(vegan)
+str(num_df)
+num_df=decostand(num_df,method = "standardize")
+```
+Write a code to observe the correlation between the  attributes 
+```{r}
+cor(num_df)
+```
+Write a code to plot the corrplot of correlation between the attributes
+```{r fig.height= 8, fig.width = 9}
+library(corrplot)
+corrplot(cor(num_df),method = "number")
+```
+Write a code to combine the numerical,categorical data along with the target 
+```{r}
+str(customer_data)
+str(target_attr)
+str(cat_df)
+str(num_df)
+combined_data=cbind(target_attr,num_df,cat_df)
+```
+Write a code to set the seed and comment why it is used.
+```{r}
+set.seed(29)
+#set the seed so that the random number generated should be same every time you divide the data into train and test.
+```
+Write a code to get the train rows using sample 
+```{r}
+train_rows=sample(x=1:nrow(combined_data),size = 0.7*nrow(combined_data))
+```
+Write a code to get the train and test 
+```{r}
+train_data=combined_data[train_rows,]
+test_data=combined_data[-train_rows,]
+```
+
+Write a code to just plot the graphs between attributes and targets
+```{r}
+par(mfrow=c(3,3))
+plot(combined_data$NoOfChildren,combined_data$TotalRevenueGenerated,xlab="No Of Childern",ylab = "Total Revenue")
+plot(combined_data$MinAgeOfChild,combined_data$TotalRevenueGenerated,xlab="MinAgeOfChild",ylab = "Total Revenue")
+plot(combined_data$MaxAgeOfChild,combined_data$TotalRevenueGenerated,xlab="MaxAgeOfChild",ylab = "Total Revenue")
+plot(combined_data$Tenure,combined_data$TotalRevenueGenerated,xlab="Tenure",ylab = "Total Revenue")
+plot(combined_data$FrquncyOfPurchase,combined_data$TotalRevenueGenerated,xlab="FrquncyOfPurchase",ylab = "Total Revenue")
+plot(combined_data$NoOfUnitsPurchased,combined_data$TotalRevenueGenerated,xlab="NoOfUnitsPurchased",ylab = "Total Revenue")
+plot(combined_data$FrequencyOFPlay,combined_data$TotalRevenueGenerated,xlab="FrequencyOFPlay",ylab = "Total Revenue")
+plot(combined_data$NoOfGamesPlayed,combined_data$TotalRevenueGenerated,xlab="NoOfGamesPlayed",ylab = "Total Revenue")
+plot(combined_data$NoOfGamesBought,combined_data$TotalRevenueGenerated,xlab="NoOfGamesBought",ylab = "Total Revenue")
+
+```
+Write a code to form a linear regression model 
+```{r}
+linReg_model=lm(formula=TotalRevenueGenerated~NoOfChildren+MinAgeOfChild+MaxAgeOfChild+Tenure+FrquncyOfPurchase+NoOfUnitsPurchased+FrequencyOFPlay+NoOfGamesPlayed+NoOfGamesBought,data=train_data)
+```
+Write a code to plot the model
+```{r}
+par(mfrow = c(2,2))
+plot(linReg_model)
+```
+Write a code to check the summary of the model 
+```{r}
+summary(linReg_model)
+```
+Write a code to predict the value of the target on the linear model 
+```{r}
+attr_without_target=num_attr[-length(num_attr)]
+pred_values=predict(linReg_model,test_data[attr_without_target])
+```
+Write a code to use stepAIC
+```{r}
+library(MASS)
+aic_model=stepAIC(linReg_model,direction = 'both')
+```
+Write a code to predict it on stepAIC
+```{r}
+predict_aic_values=predict(aic_model,test_data[attr_without_target])
+```
+Write a code to check the multicollinearity in the lm model 
+```{r}
+library(car)
+vif(linReg_model)
+```
+Write a code to check the plots of the models
+```{r}
+par(mfrow=c(2,2))
+plot(aic_model)
+```
+
+Write a code to check the multicollinearity problem
+```{r}
+vif(aic_model)
+```
+### Error Metrics for Regression
+
+```{r}
+#Mean Absolute Error (MAE)
+mae <- function(actual, predicted){
+  
+  error <- actual - predicted
+  
+  mean(abs(error))
+  
+}
+
+#Mean Squared Error (MSE)
+
+mse <- function(actual, predicted){
+  
+  error <- actual - predicted
+  
+  mean(error^2)
+  
+}
+
+#Root Mean Squared Error (RMSE)
+rmse <- function(actual, predicted){
+  
+  error <- actual - predicted
+  
+  sqrt(mean(error^2))
+  
+}
+
+#Mean Absolute Percentage Error (MAPE)
+mape <- function(actual, predicted){
+  
+  error <- actual - predicted
+  
+  mean(abs(error/actual))*100
+  
+}
+
+```
+Write a code to evaluate the error in the prediction of AIC
+
+```{r}
+mae(test_data$TotalRevenueGenerated, predict_aic_values)
+mse(test_data$TotalRevenueGenerated, predict_aic_values)
+rmse(test_data$TotalRevenueGenerated, predict_aic_values)
+mape(test_data$TotalRevenueGenerated, predict_aic_values)
+
+# OR
+
+library(DMwR)
+
+regr.eval(test_data$TotalRevenueGenerated, predict_aic_values)
+
+```
+Write a code to evaluate the error on the prediction of Linear Regression
+```{r}
+mae(test_data$TotalRevenueGenerated, pred_values)
+mse(test_data$TotalRevenueGenerated, pred_values)
+rmse(test_data$TotalRevenueGenerated, pred_values)
+mape(test_data$TotalRevenueGenerated, pred_values)
+
+# OR
+
+regr.eval(test_data$TotalRevenueGenerated, pred_values)
+
+```
+
+#As stepAIC removed Tenure because high colinearity is invovled.
+
+```{r}
+improved_ln_model=lm(formula=TotalRevenueGenerated~NoOfChildren+MinAgeOfChild+MaxAgeOfChild+FrquncyOfPurchase+NoOfUnitsPurchased+FrequencyOFPlay+NoOfGamesPlayed,data=train_data)
+
+#check the model summary.
+summary(improved_ln_model)
+
+pred_values_improved=predict(improved_ln_model,test_data[attr_without_target])
+vif(improved_ln_model)
+regr.eval(test_data$TotalRevenueGenerated, pred_values_improved)
+
+```

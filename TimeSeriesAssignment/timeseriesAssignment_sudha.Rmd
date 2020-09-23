@@ -1,0 +1,271 @@
+---
+title: Time Series Analysis on GE Power Ltd stock in BSE and to Predict the  closing
+  Price of a Stcok in FUTURE
+output:
+  html_document:
+    toc: yes
+  html_notebook:
+    fig_caption: yes
+    highlight: tango
+    theme: united
+    toc: yes
+    toc_float: yes
+---
+### Problem Description
+ 
+ Build time series models in using GE Power Stock  in the BSE.Our goal is to forecast the  closing price of the GEPower for future time period using time series algorithms and evaluating each of the algorithms.
+
+###Clear the Global Environment
+```{r}
+rm(list=ls(all=TRUE))
+```
+### Library Call
+```{r}
+library(forecast)
+library(lubridate)
+library(DataCombine)
+library(imputeTS)
+library(plyr)
+library(TTR)
+library(graphics)
+library(dplyr)
+library(DMwR)
+library(zoo)
+```
+## Read the data from csv
+* Read the data using CSV for now 
+* GEPower_Data<-Quandl("BSE/BOM532309") 
+```{r}
+Bse_data=read.csv("C:\\Users/Sony/Desktop/csv/BSE-BOM.csv")
+```
+
+## Observe the structure 
+
+```{r}
+str(Bse_data)
+
+```
+
+## Head of the Data
+
+```{r}
+head(Bse_data)
+
+```
+## Observation and Domain Knowldege
+* Stock exchange is usually closed on Sunday and Holidays therefore      those days cannot be taken as missing values 
+* Take the closing price and dates column and convert it into a new data frame
+```{r}
+Bse_data1=subset(Bse_data,select=c(Date, Close))
+
+
+```
+
+## Converting the date into year ,month and day
+```{r}
+Bse_data1$Date <- as.character(Bse_data1$Date)
+Bse_data1$Date <- as.Date((Bse_data1$Date))
+
+
+```
+
+```{r}
+str(Bse_data1)
+```
+### Observation on Average Price
+* The price is not changing daily very much 
+* We need to see mothly aggregation instead of daily
+* Adding week column in addition can help in this 
+* use any of the following aggregations such as Min , Max or Average for the price
+
+```{r}
+mindate=min(Bse_data1$Date)
+maxdate=max(Bse_data1$Date)
+seq <- data.frame("dateRange"=seq(mindate,maxdate,by="days"))
+Bse_data2=merge(seq,Bse_data1,by.x="dateRange",by.y="Date",all.x=T)
+sum(is.na(Bse_data2))
+Bse_data2$Close<-na.locf(Bse_data2$Close)
+head(Bse_data2)
+Bse_data_rev=Bse_data2[rev(rownames(Bse_data2)),]
+```
+
+### Splitting of the Data
+* Random split is not possible because here we will be in need of sequence where by we miss the data points
+* splitting is done by sequential splitting
+```{r}
+testdata=subset(Bse_data_rev,format(as.Date(Bse_data_rev$dateRange),"%Y")==2017)
+traindata=subset(Bse_data_rev$Close,format(as.Date(Bse_data_rev$dateRange),"%Y")<2017)
+
+
+```
+
+### converting into time series 
+* our target variable is price and each week has a price aggregated
+```{r}
+closePrice=ts(traindata,frequency=12)
+
+```
+
+### Vizualize the time series Data
+```{r}
+plot(closePrice,type="l",lwd=3,col="red",xlab="week",ylab="Price",main="Time series plot for Book-xyzabc")
+
+```
+
+### Decomposed Time Series
+* Decompose will provide us with the info on seasonality,trend and randomness
+```{r}
+ClosePricedecomposed=decompose(closePrice)
+plot(ClosePricedecomposed,col="Red")
+
+```
+### ACF,PACF 
+* Autocorrelation is the linear dependence of a variable with itself at two points in time
+* For stationary processes, autocorrelation between any two observations only depends on the time lag h between them
+*  Partial autocorrelation is the autocorrelation between yt and yt–h after removing any linear dependence on y1,y2, ..., yth+1
+```{r}
+par(mfrow=c(1,2))
+acf(closePrice,lag=(30))
+pacf(closePrice,lag=(30))
+par(mfrow = c(1,1))
+```
+* Looking at the Y scale in ACF we observe that trend is more dominant than seasonality
+* Data is not stationay and we need to stationarize the data
+
+### Stationarize by differencing
+
+```{r}
+ndiffs(closePrice)
+par(mfrow=c(1,3))
+plot(diff(closePrice,lag = 1),type="l"); acf(diff(closePrice,lag = 1),lag=30) ;pacf(diff(closePrice,lag = 1),lag=30)
+par(mfrow=c(1,1))
+setdiff=plot(diff(closePrice,lag = 1))
+
+```
+* one lag has stationarize the data we can use ndiffs of forecast package to check no of differences required to      stationarize the data
+
+### Modelling  the time series using simple moving averages
+* Time series Price has trend 
+* Modelling the time series behaviour by simple moving averages
+```{r}
+fitsma <- SMA(closePrice,n=2)
+pred<-forecast(fitsma,h=4)
+plot(pred)
+
+```
+### Define the metric MAPE 
+```{r}
+smaMape <- mean(abs((closePrice[2:length(closePrice)]-fitsma[2:length(closePrice)])/closePrice[2:length(closePrice)]))
+smaMape
+
+```
+
+### Weighted Moving Averages
+```{r}
+fitwma<- WMA(closePrice,n=2,1:2)
+wmaMape <- mean(abs((closePrice[2:length(closePrice)]-fitwma[2:length(closePrice)])/closePrice[2:length(closePrice)]))
+wmaMape
+pred<-forecast(fitwma,h=4)
+plot(pred)
+
+
+```
+
+### Exponential Moving Averages
+```{r}
+fitEma <- EMA(closePrice, n = 2)
+emaMape <- mean(abs((closePrice[2:length(closePrice)]-fitEma[2:length(closePrice)])/closePrice[2:length(closePrice)]))
+emaMape
+pred<-forecast(fitEma,h=4)
+plot(pred)
+
+
+
+```
+
+## HoltWinters Model
+```{r}
+holtpriceforecast <- HoltWinters(traindata,gamma=FALSE)
+head(holtpriceforecast$fitted)
+
+
+```
+## Improvement of the model
+
+```{r}
+priceholtforecast <-
+HoltWinters(closePrice, beta=TRUE, gamma=TRUE, seasonal="additive")
+head(priceholtforecast$fitted)
+
+```
+*Since you are building the models on monthly data, you will get 12 seasonal components. 
+### Prediction on the Train
+```{r}
+holtforecastTrain <- data.frame(priceholtforecast$fitted)
+holtforecastTrainpredictions <- holtforecastTrain$xhat
+head(holtforecastTrainpredictions)
+
+```
+
+### Prediction on test data
+```{r}
+priceforecast<-forecast(priceholtforecast,h = 8)
+plot(priceforecast,ylim = c(-200,200))
+
+```
+
+### Arima Models
+```{r}
+model1 <- arima(closePrice,c(0,0,0))
+model1
+par(mfrow = c(1,3))
+acf(closePrice) 
+pacf(closePrice)
+plot(closePrice)
+
+nsdiffs(close) # No
+
+#Non-seasonal differencing
+ndiffs(closePrice)  # Yes,  = 1
+
+model2 <- arima(closePrice,c(0,1,0))
+model2
+acf(diff(closePrice,lag = 1))
+pacf(diff(closePrice,lag = 1))
+plot(diff(closePrice))
+
+# So manual arima model is (0,1,0)
+```
+
+
+## Plots of the models
+```{r}
+par(mfrow=c(1,2))
+plot(model1$residuals,ylim=c(-50,50))
+plot(model2$residuals,ylim=c(-50,50))
+```
+
+```
+
+### Using Auto Arima
+```{r}
+MODEL_ARIMA <- auto.arima(closePrice, ic='aic')
+summary(MODEL_ARIMA)
+
+```
+### Forecast on the models 
+```{r}
+par(mfrow = c(1,1))
+pricearimaforecasts1 <- forecast(model1, h=4)
+plot(pricearimaforecasts1)
+
+pricearimaforecasts2 <- forecast(model2, h=4)
+plot(pricearimaforecasts1)
+
+pricearimaforecasts_autArima<- forecast(MODEL_ARIMA,h=4)
+plot(pricearimaforecasts_autArima,flwd = 2)
+
+```
+
+
+

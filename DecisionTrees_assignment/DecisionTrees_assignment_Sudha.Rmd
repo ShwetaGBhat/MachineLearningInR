@@ -1,0 +1,373 @@
+---
+title: "Decision Trees"
+author: "Sudharani Rangaple"
+date: "23 July 2017"
+output:
+  html_document:
+    toc: yes
+    toc_depth: 3
+    toc_float: yes
+---
+
+# C5.0 Trees
+
+**NOTE** Before starting this assignment please remember to clear your environment, you can do that by running the following code chunk
+
+```{r}
+rm(list=ls(all=TRUE))
+
+```
+
+## Goal
+
+* The goal of this activity is to predict wether a patient has liver disease or not based on various patient related attributes
+
+
+## Agenda 
+
+* Get the data
+
+* Data Pre-processing
+
+* Build a model
+
+* Predictions
+
+* Communication
+
+
+## Reading & Understanding the Data
+
+### Read the Data
+
+Make sure the dataset is located in your current working directory, or else you can change your working directory using the "setwd()" function.
+
+```{r}
+setwd("C:\\Users/Sony/Desktop/csv")
+ilpddata = read.csv(file="C:\\Users/Sony/Desktop/csv/ilpd_data.csv",header=TRUE)
+```
+
+### Understand the data
+
+* Use the str(), summary(), head() and tail() functions to get the dimensions and types of attributes in the dataset
+
+* The dataset has 582 observations and 11 variables
+
+- __The variable descriptions are given below:__
+
+1 - age	 : Age of the patient
+
+2 - gender : Gender of the patient
+
+3 - TB : Total Bilirubin content
+
+4 - DB : Direct Bilirubin content
+
+5 - alk_phos : Alkaline Phosphotase content
+
+6 - alamine : Alamine Aminotransferase content
+
+7 - aspartate : Aspartate Aminotransferase content
+
+8 - TP : Total Protiens content
+
+9 - albumin : 	Albumin content
+
+10 - A/G : Ratio of Albumin and Globulin 
+
+11 - Disease : Whether the patient has liver disease or not 
+
+
+```{r}
+str(ilpddata)
+
+```
+
+```{r}
+
+summary(ilpddata)
+
+```
+
+
+## Data Pre-processing
+
+### Verify Data Integrity
+
+* Verify if the dataset has missing values
+
+```{r}
+sum(is.na(ilpddata))
+
+
+```
+
+* Verify the data types assigned to the variables in the dataset
+
+```{r}
+
+str(ilpddata)
+
+```
+
+### Impute the missing values
+
+* Impute missing values using knnImputation() function in both the train and test datasets
+
+```{r}
+
+library(DMwR)
+ilpddata = knnImputation(ilpddata)
+
+```
+
+### Split the Data into train and test sets
+
+* Use stratified sampling to split the data into train/test sets (70/30)
+
+* Use the createDataPartition() function from the caret package to do stratified sampling
+
+```{r}
+library(caret)
+set.seed(120)
+trainIndex <- createDataPartition(ilpddata$disease, p = .7, list = F)
+
+train_data <- ilpddata[trainIndex, ]
+
+test_data <- ilpddata[-trainIndex, ]
+
+```
+
+
+
+## Build a  Decision Tree
+
+### Model the tree
+
+* Use Quinlan's C5.0 decision tree algorithm implementation from the C50 package to build your decision tree
+
+```{r}
+library(C50)
+c5_tree=C5.0(disease ~ .,train_data)
+
+```
+
+* Build a rules based tree
+
+```{r}
+c5_rules <- C5.0(disease ~ . , train_data, rules = T)
+
+```
+
+### Variable Importance in trees
+
+* Find the importance of each variable in the dataset
+
+```{r}
+C5imp(c5_tree, metric = "usage")
+```
+
+### Rules from trees
+
+* Understand the summary of the returned c5.0 rules based on the decision tree model
+
+
+```{r}
+
+summary(c5_rules)
+
+```
+
+
+### Plotting the tree
+
+* Call the plot function on the tree object to visualize the tree
+
+```{r, fig.width= 35, fig.height=15}
+plot(c5_tree)
+
+
+```
+
+
+## Evaluating the model
+
+### Predictions on the test data
+
+* Evaluate the decision tree using the standard error metrics on test data
+
+```{r}
+preds <- predict(c5_tree, test_data)
+
+
+```
+
+* Report error metrics for classification on test data
+
+```{r}
+
+library(caret)
+library(rattle)
+ilpd=confusionMatrix(preds, test_data$disease)
+
+
+
+
+```
+
+# CART Trees
+
+**NOTE** Before starting this assignment please remember to clear your environment, you can do that by running the following code chunk
+
+```{r}
+
+rm(list=ls(all=TRUE))
+
+```
+
+* The classification and regression trees use gini index in place of the gain ratio (based on information gain) used by the ID3 based algorithms, such as c4.5 and c5.0
+
+## Goal
+
+* The goal of this activity is to predict the heating load of a residential building, if the building parameters are given
+
+* Hence, in the future architects would be able to build more energy efficient buildings as they can optimize the building parameters to reduce the heating load
+
+## Agenda 
+
+* Get the data
+
+* Data Pre-processing
+
+* Build a model
+
+* Predictions
+
+* Communication
+
+
+## Reading & Understanding the Data
+
+### Read the Data
+
+* Make sure the dataset is located in your current working directory, or else you can change your working directory using the "setwd()" function.
+
+```{r}
+
+building_energy=read.csv(file="C:\\Users/Sony/Desktop/csv/building_energy.csv")
+
+```
+
+### Understand the data
+
+* Use the str(), summary(), head() and tail() functions to get the dimensions and types of attributes in the dataset
+
+* The dataset has 768 observations and 9 variables
+
+```{r}
+str(building_energy)
+summary(building_energy)
+head(building_energy)
+tail(building_energy)
+
+```
+
+* The variable names are self explanatory, for further information visit http://www.sciencedirect.com/science/article/pii/S037877881200151X
+
+## Data Pre-processing
+
+### Verify Data Integrity
+
+* Verify if the dataset has missing values
+
+```{r}
+sum(is.na(building_energy))
+
+
+```
+
+* Verify the data types assigned to the variables in the dataset
+
+```{r}
+
+# Enter answer here
+
+str(building_energy)
+
+```
+
+### Split the Data
+
+* Split the data into train/test sets (70/30)
+
+```{r}
+set.seed(150)
+
+train_rows <- sample(1:nrow(building_energy), 0.7*nrow(building_energy))
+
+train_reg <- building_energy[train_rows, ]
+
+test_reg <- building_energy[-train_rows, ]
+```
+
+## Build a Regression Tree
+
+### Model the tree
+
+* Use the rpart package to build a cart tree to predict the heating load
+
+```{r}
+
+library(rpart)
+reg_tree <- rpart(heating_load ~ ., train_reg)
+
+printcp(reg_tree)
+
+```
+
+### Tree Explicability
+
+* Print the variable importance
+
+```{r}
+reg_tree$variable.importance
+
+
+```
+
+* Plot the regression tree
+
+```{r, fig.width=8, fig.height=5}
+
+library(rpart.plot)
+rpart.plot(reg_tree)
+
+
+
+```
+
+## Evaluation on Test Data
+
+* Report error metrics on the test data
+
+```{r}
+
+preds_reg <- predict(reg_tree, test_reg)
+
+```
+
+```{r}
+library(DMwR)
+
+regr.eval(test_reg$heating_load, preds_reg)
+
+
+
+```
+
+
+
+
+
+
+

@@ -1,0 +1,173 @@
+---
+title: "Text Mining Assignment"
+author: '"Vamsi Kc"'
+date: "August 8, 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+rm(list = ls(all=TRUE))
+#setwd("C:\\Users\\Dell\\Downloads\\TM_Assignment_Data")
+
+```
+# load required library for handling text
+
+```{r}
+library(tm)
+library(magrittr)         
+library(NLP)
+library(caret)
+```
+
+# Create a corpus - a collection of text documents
+
+```{r}
+getSources()
+getReaders()
+sci.med = Corpus(DirSource("/Users/shwetabhat/Desktop/DataScience/TextClassifcationAssignment/sci.med"),
+                    readerControl = list(language='en_US'))
+
+sci.space = Corpus(DirSource("/Users/shwetabhat/Desktop/DataScience/TextClassifcationAssignment/sci.space"),
+                    readerControl = list(language='en_US'))
+
+```
+
+
+#examine the file
+```{r}
+sci.med[[1]]
+as.character(sci.med[[1]])
+length(sci.med)
+inspect(sci.med[1])
+meta(sci.med[[1]])
+
+
+```
+
+# Create a common corpus
+
+```{r}
+corpus_total = c(sci.med,sci.space)
+corpus_total = Corpus(VectorSource(unlist(corpus_total)))
+rm(sci.med,sci.space)
+
+```
+
+# Necessary preprocessing
+
+```{r}
+getTransformations()
+toSpace <- content_transformer(function(x, pattern) gsub(pattern, " ", x))
+docs <- tm_map(corpus_total, toSpace, "/")
+docs <- tm_map(corpus_total, toSpace, "@")
+docs <- tm_map(corpus_total, toSpace, "\\|")
+
+corpus_total = tm_map(corpus_total, removePunctuation)
+corpus_total = tm_map(corpus_total, removeNumbers)
+corpus_total = tm_map(corpus_total, tolower)
+corpus_total = tm_map(corpus_total, removeWords, stopwords("english"))
+corpus_total = tm_map(corpus_total, stemDocument, language="english")
+corpus_total = tm_map(corpus_total, stripWhitespace)
+
+as.character(corpus_total[[1]])
+
+
+```
+
+#Constructs or coerces to a document-term matrix
+```{r}
+dt_matrix <-DocumentTermMatrix(corpus_total, 
+                               control=list(weighting=weightTfIdf, 
+                                            minWordLength=2, 
+                                            minDocFreq=5)) 
+
+dt_matrix
+inspect(dt_matrix[1:4,1:5])
+
+
+
+```
+
+
+# Remove sparse terms from a document-term matrix
+```{r}
+dt_matrix <- removeSparseTerms(dt_matrix, 0.75)
+```
+
+#Display detailed information on a document-term matrix
+```{r}
+inspect(dt_matrix[1:4,1:5])
+
+dim(dt_matrix)
+```
+
+# Applying SVD on Document-Term Matrix
+
+```{r}
+svd = svd(as.matrix(dt_matrix))
+matrix = svd$u
+View(matrix)
+```
+
+# Convert to dataframe
+```{r}
+data = as.data.frame(matrix)
+data <- data[apply(data, 1, function(x) !all(x==0)),]
+```
+
+# Attach Class label
+```{r}
+target = as.factor(c(rep('med',1000), rep('space',1000)))
+data <- cbind(data,target)
+
+# split the data into train and test
+set.seed(586)
+
+train_rows = createDataPartition(data$target, p = 0.8, list = F)
+
+train_target = data[train_rows, names(data) %in% c("target")] 
+
+train = data[train_rows,] 
+test = data[-train_rows,]
+```
+
+#### Classification Task
+# Using Decision Tree
+```{r}
+library(rpart)
+rpart_model = rpart(train_target~.,train)
+table(test$target,predict(rpart_model,test,type = "class"))
+```
+# Using Naive Bayes
+```{r}
+library(e1071)
+nb_model = naiveBayes(x = train,y = train$target)
+table(test$target,predict(nb_model,test[,!names(test) %in% c("target")],type = "class"))
+
+```
+
+
+#Using knn classifier
+# Verifying the ratio of med and space
+```{r}
+prop.table(table(data$target))
+prop.table(table(train$target))
+prop.table(table(test$target))
+# remove the target variable
+train_withoutclass = subset(train,select=-c(target))
+test_withoutclass = subset(test,select=-c(target))
+
+# N = 1/3/5/7
+library(class)
+Neigh <-3
+pred=knn(train_withoutclass, test_withoutclass, train$target, k = Neigh)
+a=table(pred,test$target)
+a
+
+accu= sum(diag(a))/sum(a)
+accu
+```

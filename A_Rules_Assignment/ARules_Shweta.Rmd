@@ -1,0 +1,129 @@
+---
+title: "ARules_Assignment"
+author: "Shweta"
+date: "8/5/2017"
+output: html_document
+---
+
+# Problem 3 - Assignment
+### Association Rules for "Flight Delay" dataset: Generate the rules and identify the patterns. 
+
+1. Read the data into R
+
+```{r, echo=T}
+rm(list = ls(all=T))
+
+flight_data<-read.csv(file = "/Users/shwetabhat/Desktop/DataScience/A_Rules_Assignment/FlightDelays.csv", header = T, sep = ",")
+
+sum(is.na((flight_data)))
+```
+
+
+2. Look at the summary of all the variables and convert the following variables as factors 
+        + Weather 
+        + DAY_WEEK 
+        + Flight Status
+```{r}
+str(flight_data)
+
+flight_data$Weather<-as.factor(as.character(flight_data$Weather))
+flight_data$DAY_WEEK<-as.factor(as.character(flight_data$DAY_WEEK))
+flight_data$Flight.Status<-as.factor(as.character(flight_data$Flight.Status))
+
+str(flight_data)
+```
+
+3. Bin the numeric variable 'CRS_DEP_TIME' into 4 bins as follows: If time is between 6 AM to 12 noon code as 1 and If the time is between 2 , etc.
+```{r}
+##000 to 559 will not have any values
+
+flight_data$CRS_DEP_TIME = factor(cut(flight_data$CRS_DEP_TIME, breaks = c(0,599, 1200, 1800, 2400), labels = c(1, 2, 3, 4)))
+
+
+unique(flight_data$CRS_DEP_TIME)
+
+table(flight_data$CRS_DEP_TIME)
+
+summary(flight_data)
+
+```
+
+4. Convert the data frame in a transactions object. Look at the first 6 transactions to understand how 'arules' library requires data to be transformed. Use the below R code to view the transactions data 
+```{r}
+library(arules)
+
+##Convert into Transactional objects
+flight_trans <-  as(flight_data, "transactions")
+
+summary(flight_trans)
+
+itemInfo(flight_trans)
+
+#inspect(flight_trans)
+itemFrequencyPlot(flight_trans)
+```
+
+5. Apply 'arules' algorithm and play with various support, lift and confidence values.
+```{r}
+rules1<-apriori(flight_trans, parameter = list(support = 0.1, conf = 0.1, target = 'rules', minlen = 3))
+rules1
+
+inspect(rules1[1:10])
+rules2<-apriori(flight_trans, parameter = list(support = 0.1, conf = 0.3, target = 'rules', minlen = 3))
+rules2
+```
+
+6. Inspect all the rules.
+```{r}
+rules1=sort(rules1, by = c("support", "confidence"))
+
+rules2=sort(rules2, by = c("support", "confidence"))
+inspect(rules2[1:15])
+inspect(rules1[1:15])
+```
+
+7. Filter the rules with specific LHS and RHS conditions 
+E.g.; Filter the rules with Flighstatus=0
+```{r}
+## filtering rhs(rules) get flightstatus 
+#minlen=3 corresponds to rules with atleast 3 elements.
+filtered_rule1 <- subset(rules1, subset = rhs %in% 
+                        "Flight.Status=0")#has only rules object.
+filtered_rule1_df <- as(subset(rules1, subset = rhs %in% 
+                        "Flight.Status=0"),"data.frame")#rules converted into dataframe
+
+filtered_rule2_df <- as(subset(rules1, subset = rhs %in% 
+                        "Flight.Status=1"),"data.frame")
+filtered_rule2 <- subset(rules1, subset = rhs %in% 
+                        "Flight.Status=1")
+```
+
+8. Filter redundant rules if any
+```{r}
+
+#Check for count of redundant rules.
+table(duplicated(filtered_rule1))
+table(is.redundant(filtered_rule1))
+table(duplicated(filtered_rule2))
+table(is.redundant(filtered_rule2))
+#Check for redundancy in rules.
+which(is.redundant(filtered_rule1))
+
+# Rules Pruning.
+
+subset.matrix <- is.subset(filtered_rule1, filtered_rule1,sparse = FALSE)
+dim(subset.matrix)
+subset.matrix[lower.tri(subset.matrix, diag=T)] <- NA
+redundant <- colSums(subset.matrix, na.rm=T) >= 1
+which(redundant)
+
+#remove the redundancy.
+rules.pruned <- filtered_rule1[!redundant]
+inspect(rules.pruned[1:15])
+```
+
+9. Pot and visualize the rules
+```{r}
+library(arulesViz)
+plot(rules.pruned)
+```

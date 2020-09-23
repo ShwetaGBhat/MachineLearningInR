@@ -1,0 +1,114 @@
+---
+title: "SVMandRandomFoestAssignment"
+author: "Shweta"
+date: "8/28/2017"
+output: html_document
+---
+  
+###Clear the Global Environment
+```{r}
+rm(list=ls(all=TRUE))
+```
+#Lodaing Libraries
+```{r}
+library(DMwR)
+library(dummies)
+library(e1071)
+```
+
+# Reading data.
+```{r}
+sar_data = read.csv(file = "/Users/shwetabhat/Downloads/assignment-svm-random-forest-ShwetaGBhat-master/SaratogaHouses.csv", sep = ",")
+```
+
+# Looking at the data 
+```{r}
+print(str(sar_data))
+print(summary(sar_data))
+```
+
+#Checking for missing values.
+```{r}
+sum(is.na(sar_data))
+```
+
+#Creating dummies for SVM as SVM runs only on Numerical data.
+```{r}
+str(sar_data)
+dummified_Val = data.frame(dummy(sar_data$heating))
+sar_data[,"heating"] = NULL
+sar_data = cbind(sar_data,dummified_Val)
+
+dummified_Val = data.frame(dummy(sar_data$fuel))
+sar_data[,"fuel"] = NULL
+sar_data = cbind(sar_data,dummified_Val)
+
+dummified_Val = data.frame(dummy(sar_data$sewer))
+sar_data = cbind(sar_data,dummified_Val)
+sar_data[,"sewer"] = NULL
+
+dummified_Val = data.frame(dummy(sar_data$waterfront))
+sar_data = cbind(sar_data,dummified_Val)
+sar_data[,"waterfront"] = NULL
+
+dummified_Val = data.frame(dummy(sar_data$newConstruction))
+sar_data = cbind(sar_data,dummified_Val)
+sar_data[,"newConstruction"] = NULL
+
+dummified_Val = data.frame(dummy(sar_data$centralAir))
+sar_data = cbind(sar_data,dummified_Val)
+sar_data[,"centralAir"] = NULL
+```
+#Splitting the data into train and Test
+```{r}
+train_rows = sample(1:nrow(sar_data), nrow(sar_data)*.7)
+trainData = sar_data[train_rows,]
+testData = sar_data[-train_rows,]
+```
+#Building SVM Regression
+```{r}
+svmModel = svm(x = trainData[,2:ncol(trainData)], y = trainData[,1], kernel = "linear")
+summary(svmModel)
+```
+#Model Evaluation on SVM
+```{r}
+regr.eval(trainData$price, predict(svmModel, trainData[,2:ncol(trainData)]))
+regr.eval(testData$price, predict(svmModel, testData[,2:ncol(testData)]))
+```
+
+#Building Random Forest
+# Clear all environment variables
+```{r}
+rm(list = ls(all = TRUE))
+```
+#Lodaing Libraries
+```{r}
+library(DMwR)
+library(randomForest)
+```
+# Reading the data
+```{r}
+sar_data = read.csv(file = "/Users/shwetabhat/Downloads/assignment-svm-random-forest-ShwetaGBhat-master/SaratogaHouses.csv", sep = ",")
+```
+#Data observation.
+```{r}
+print(str(sar_data))
+print(summary(sar_data))
+sum(is.na(sar_data))
+```
+#Splitting the data into train and Test
+```{r}
+train_rows = sample(1:nrow(sar_data), nrow(sar_data)*.7)
+trainData = sar_data[train_rows,]
+testData = sar_data[-train_rows,]
+```
+#Building Random Forest 
+```{r}
+rmModel = randomForest(price ~ ., trainData,ntree=1200)
+summary(rmModel)
+```
+#Evaluate RM Model.
+```{r}
+regr.eval(trainData$price, predict(rmModel, trainData[,2:ncol(trainData)]))
+regr.eval(testData$price, predict(rmModel, testData[,2:ncol(testData)]))
+```
